@@ -1,0 +1,62 @@
+services:
+  # === BASE DE DATOS (Blindada) ===
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: always
+    # Forzamos utf8mb4 para emojis y plugin nativo para compatibilidad
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - red_softpachuca
+    # NOTA: Sin 'ports' expuestos. Solo accesible internamente.
+
+  # === TU BOT (Cerebro) ===
+  bot-pachuca:
+    build: .
+    container_name: bot-inmortal
+    restart: always
+    ports:
+      - "8000:8000" # Este sí se expone para recibir el Webhook
+    environment:
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DOMAIN_NAME=${DOMAIN_NAME}
+      - VERIFY_TOKEN=${VERIFY_TOKEN}
+    depends_on:
+      - db
+    networks:
+      - red_softpachuca
+
+  # === N8N (Automatización) ===
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: cerebro-n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${DOMAIN_NAME}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - red_softpachuca
+
+volumes:
+  mysql_data:
+  n8n_data:
+
+networks:
+  red_softpachuca:
+    driver: bridge
